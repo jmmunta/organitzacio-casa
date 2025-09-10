@@ -21,6 +21,13 @@
   <main class="container">
     <h1>Organització Casa · Tasques familiars</h1>
     <p class="muted">Registra qui fa què, quan i com de bé. Suma punts i mireu el rànquing setmanal o mensual.</p>
+    
+    <!-- Banner d’instal·lació -->
+    <div id="installBanner" style="display:none;margin:1rem 0;padding:.75rem 1rem;border-radius:8px;
+        background:#fff4e5;border:1px solid #ffcd94;color:#663c00">
+      ⚠️ Sembla que la base de dades encara no està inicialitzada.<br>
+      Ves a <a href="migrate.php"><strong>migrate.php</strong></a> per crear les taules i omplir les tasques.
+    </div>
 
     <!-- Banner d’estat -->
     <div id="status"></div>
