@@ -9,7 +9,10 @@
   <style>
     .badge {display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#eee;margin-right:.25rem}
     .grid {display:grid;gap:1rem}
-    @media (min-width: 900px){.grid-2{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr 1fr 1fr}}
+    @media (min-width: 900px){
+      .grid-2{grid-template-columns:1fr 1fr}
+      .right-col{grid-template-columns:1fr} /* apilat a la columna dreta */
+    }
     .card{border:1px solid #e7e7e7;border-radius:12px;padding:1rem}
     .muted{color:#666}
     #status{margin:.75rem 0;padding:.5rem .75rem;border-radius:8px;display:none}
@@ -21,18 +24,20 @@
   <main class="container">
     <h1>Organització Casa · Tasques familiars</h1>
     <p class="muted">Registra qui fa què, quan i com de bé. Suma punts i mireu el rànquing setmanal o mensual.</p>
-    
-    <!-- Banner d’instal·lació -->
+
+    <!-- Banner d’instal·lació (es mostra si l’API falla) -->
     <div id="installBanner" style="display:none;margin:1rem 0;padding:.75rem 1rem;border-radius:8px;
-        background:#fff4e5;border:1px solid #ffcd94;color:#663c00">
-      ⚠️ Sembla que la base de dades encara no està inicialitzada.<br>
+         background:#fff4e5;border:1px solid #ffcd94;color:#663c00">
+      ⚠️ Sembla que la base de dades encara no està inicialitzada.
       Ves a <a href="migrate.php"><strong>migrate.php</strong></a> per crear les taules i omplir les tasques.
     </div>
 
-    <!-- Banner d’estat -->
+    <!-- Banner d’estat de l’app -->
     <div id="status"></div>
 
+    <!-- FILA SUPERIOR: esquerra registre / dreta classificació + llista -->
     <section class="grid grid-2">
+      <!-- Esquerra: Registrar -->
       <article class="card">
         <h3>Registrar tasca feta</h3>
         <form id="entryForm">
@@ -55,6 +60,30 @@
         </form>
       </article>
 
+      <!-- Dreta: Classificació (a dalt) + Tasques registrades (a sota) -->
+      <div class="grid right-col">
+        <article class="card">
+          <h3>Classificació <span id="rangeLabel" class="muted"></span></h3>
+          <div id="leaderboard"></div>
+        </article>
+
+        <article class="card">
+          <header class="grid grid-3" style="align-items:end">
+            <h3 style="margin:0">Tasques registrades</h3>
+            <input id="search" placeholder="Cerca per membre, tasca o nota…" />
+            <select id="range">
+              <option value="setmana">Aquesta setmana</option>
+              <option value="mes">Aquest mes</option>
+              <option value="sempre">Sempre</option>
+            </select>
+          </header>
+          <div id="entriesList" style="margin-top:1rem"></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ÚLTIM BLOC: Configuració (a baix de tot, 100% ample) -->
+    <section class="grid">
       <article class="card">
         <h3>Configuració</h3>
         <details open>
@@ -78,29 +107,25 @@
         </details>
       </article>
     </section>
-
-    <section class="grid">
-      <article class="card">
-        <header class="grid grid-3" style="align-items:end">
-          <h3 style="margin:0">Tasques registrades</h3>
-          <input id="search" placeholder="Cerca per membre, tasca o nota…" />
-          <select id="range">
-            <option value="setmana">Aquesta setmana</option>
-            <option value="mes">Aquest mes</option>
-            <option value="sempre">Sempre</option>
-          </select>
-        </header>
-        <div id="entriesList" style="margin-top:1rem"></div>
-      </article>
-
-      <article class="card">
-        <h3>Classificació <span id="rangeLabel" class="muted"></span></h3>
-        <div id="leaderboard"></div>
-      </article>
-    </section>
   </main>
 
   <!-- JS principal separat -->
   <script src="assets/app.js"></script>
+
+  <!-- petit script per mostrar el banner d'instal·lació quan cal -->
+  <script>
+    async function checkInstall(){
+      try {
+        const r = await fetch('api.php?action=list_all', { headers:{'Accept':'application/json'} });
+        const txt = await r.text();
+        JSON.parse(txt);
+        document.getElementById('installBanner').style.display = 'none';
+      } catch(e) {
+        const b = document.getElementById('installBanner');
+        if (b) b.style.display = 'block';
+      }
+    }
+    document.addEventListener('DOMContentLoaded', checkInstall);
+  </script>
 </body>
 </html>
