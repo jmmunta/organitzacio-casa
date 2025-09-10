@@ -1,113 +1,26 @@
-<?php /* index.php */ ?>
-<!doctype html>
-<html lang="ca">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Organització Casa · Tasques familiars</title>
-  <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@2/css/pico.min.css" />
-  <style>
-    .badge {display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#eee;margin-right:.25rem}
-    .grid {display:grid;gap:1rem}
-    @media (min-width: 900px){.grid-2{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr 1fr 1fr}}
-    .card{border:1px solid #e7e7e7;border-radius:12px;padding:1rem}
-    .muted{color:#666}
-    #status{margin:.75rem 0;padding:.5rem .75rem;border-radius:8px;display:none}
-    #status.err{display:block;background:#ffe8e8;border:1px solid #ffb3b3;color:#8a1f1f}
-    #status.ok{display:block;background:#e8fff0;border:1px solid #b3ffd1;color:#1f8a4a}
-  </style>
-</head>
-<body>
-  <main class="container">
-    <h1>Organització Casa · Tasques familiars</h1>
-    <p class="muted">Registra qui fa què, quan i com de bé. Suma punts i mireu el rànquing setmanal o mensual.</p>
+/* Organització Casa – JS principal (moure des d'index.php) */
 
-    <div id="status"></div>
-
-    <section class="grid grid-2">
-      <article class="card">
-        <h3>Registrar tasca feta</h3>
-        <form id="entryForm">
-          <label>Membre
-            <select id="memberId"></select>
-          </label>
-          <label>Tasca
-            <select id="taskId"></select>
-          </label>
-          <label>Data i hora
-            <input type="datetime-local" id="dateISO" />
-          </label>
-          <label>Qualitat (1–5)
-            <input type="number" id="quality" min="1" max="5" value="3" />
-          </label>
-          <label>Notes
-            <textarea id="notes" rows="2" placeholder="Detalls, incidències…"></textarea>
-          </label>
-          <button type="submit">Afegir registre</button>
-        </form>
-      </article>
-
-      <article class="card">
-        <h3>Configuració</h3>
-        <details open>
-          <summary>Membres</summary>
-          <form id="memberForm" class="grid">
-            <input id="memberName" placeholder="Nom" />
-            <input id="memberRole" placeholder="Rol/edat" />
-            <button>Afegeix membre</button>
-          </form>
-          <div id="membersList" style="margin-top:.5rem"></div>
-        </details>
-        <details open>
-          <summary>Tasques</summary>
-          <form id="taskForm" class="grid">
-            <input id="taskName" placeholder="Nom de la tasca" />
-            <input id="taskPoints" type="number" min="1" value="10" />
-            <input id="taskIcon" placeholder="Icona (ex: 🧹)" maxlength="8" />
-            <button>Afegeix tasca</button>
-          </form>
-          <div id="tasksList" style="margin-top:.5rem"></div>
-        </details>
-      </article>
-    </section>
-
-    <section class="grid">
-      <article class="card">
-        <header class="grid grid-3" style="align-items:end">
-          <h3 style="margin:0">Tasques registrades</h3>
-          <input id="search" placeholder="Cerca per membre, tasca o nota…" />
-          <select id="range">
-            <option value="setmana">Aquesta setmana</option>
-            <option value="mes">Aquest mes</option>
-            <option value="sempre">Sempre</option>
-          </select>
-        </header>
-        <div id="entriesList" style="margin-top:1rem"></div>
-      </article>
-
-      <article class="card">
-        <h3>Classificació <span id="rangeLabel" class="muted"></span></h3>
-        <div id="leaderboard"></div>
-      </article>
-    </section>
-  </main>
-
-<script>
+/* Estat i constants */
 const QUALITY_MULT = {1:0.6, 2:0.8, 3:1.0, 4:1.2, 5:1.5};
 let state = { members:[], tasks:[], entries:[] };
+
 const $ = (id)=>document.getElementById(id);
-const statusEl = $('status');
 
-function showOK(msg){ statusEl.className='ok'; statusEl.textContent=msg; }
-function showErr(msg){ statusEl.className='err'; statusEl.textContent=msg; }
-function clearStatus(){ statusEl.className=''; statusEl.style.display='none'; statusEl.textContent=''; }
-new MutationObserver(()=>{ statusEl.style.display = statusEl.textContent ? 'block' : 'none'; }).observe(statusEl, {childList:true});
+/* Banner d’estat */
+const statusEl = document.getElementById('status');
+function showOK(msg){ if(!statusEl) return; statusEl.className='ok'; statusEl.textContent=msg; statusEl.style.display='block'; }
+function showErr(msg){ if(!statusEl) return; statusEl.className='err'; statusEl.textContent=msg; statusEl.style.display='block'; }
+function clearStatus(){ if(!statusEl) return; statusEl.className=''; statusEl.textContent=''; statusEl.style.display='none'; }
 
+/* Helpers */
 function fmtDate(d){ const dt = new Date(d); return dt.toLocaleString('ca-ES'); }
 function toLocalInputNow(){ const d=new Date(); const local=new Date(Date.now()-d.getTimezoneOffset()*60000); return local.toISOString().slice(0,16); }
-$('dateISO').value = toLocalInputNow();
+function escapeHtml(s){
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
 
-/* Helper API */
+/* Client API robust */
 async function api(params, method='GET'){
   const url = method==='GET' ? 'api.php?'+params.toString() : 'api.php';
   const res = await fetch(url, { method, ...(method==='POST'?{body:params}:{}) });
@@ -119,16 +32,20 @@ async function api(params, method='GET'){
   clearStatus(); return data;
 }
 
-afterLoad();
+/* Cicle de vida */
+document.addEventListener('DOMContentLoaded', async ()=>{
+  const dateInput = $('dateISO');
+  if (dateInput) dateInput.value = toLocalInputNow();
 
-async function afterLoad(){
   try{
     await api(new URLSearchParams({action:'bootstrap'}), 'GET');
     await loadAll();
     bindForms();
     renderAll();
   }catch(e){ console.error(e); }
-}
+});
+
+/* Dades */
 async function loadAll(){
   const data = await api(new URLSearchParams({action:'list_all'}), 'GET');
   state = data;
@@ -137,6 +54,7 @@ async function loadAll(){
   }
 }
 
+/* Formularis */
 function bindForms(){
   $('entryForm').addEventListener('submit', async (e)=>{
     e.preventDefault();
@@ -177,11 +95,11 @@ function bindForms(){
     e.preventDefault();
     const name = $('taskName').value.trim();
     const base_points = parseInt($('taskPoints').value||'10',10);
-    const icon = $('taskIcon').value.trim();
+    const icon = $('taskIcon') ? $('taskIcon').value.trim() : '';
     if(!name || base_points<=0){ showErr('Nom de tasca i punts base > 0'); return; }
     try{
       await api(new URLSearchParams({action:'add_task', name, base_points, icon}), 'POST');
-      $('taskName').value=''; $('taskPoints').value='10'; $('taskIcon').value='';
+      $('taskName').value=''; $('taskPoints').value='10'; if($('taskIcon')) $('taskIcon').value='';
       await loadAll(); renderAll(); showOK('Tasca afegida.');
     }catch(e){ console.error(e); }
   });
@@ -190,11 +108,7 @@ function bindForms(){
   $('range').addEventListener('change', renderAll);
 }
 
-function escapeHtml(s){
-  if (s == null) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-}
-
+/* Render */
 function renderAll(){
   // SELECTS
   $('memberId').innerHTML = state.members.map(m => '<option value="'+m.id+'">'+escapeHtml(m.name)+'</option>').join('');
@@ -271,6 +185,7 @@ function renderAll(){
   }).join('') || '<p class="muted">Encara no hi ha punts.</p>';
 }
 
+/* Utils */
 function withinRange(dateStr, range){
   const d = new Date(dateStr);
   const now = new Date();
@@ -289,19 +204,31 @@ function withinRange(dateStr, range){
   return true;
 }
 
-// accions d'esborrar
-async function delMember(id){
+/* Detecta si falta la BD (mostra banner d'instal·lació) */
+async function checkInstall(){
+  try {
+    await api(new URLSearchParams({action:'list_all'}), 'GET');
+    document.getElementById('installBanner').style.display = 'none';
+  } catch(e) {
+    console.warn('Error API: potser falta inicialitzar la BD', e);
+    const banner = document.getElementById('installBanner');
+    if (banner) banner.style.display = 'block';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', checkInstall);
+
+
+/* Accions d’esborrar */
+window.delMember = async function(id){
   if(!confirm('Segur que vols esborrar aquest membre? També s\'esborraran les seves entrades.')) return;
   try{ await api(new URLSearchParams({action:'delete_member', id}), 'POST'); await loadAll(); renderAll(); showOK('Membre esborrat.'); }catch(e){}
-}
-async function delTask(id){
+};
+window.delTask = async function(id){
   if(!confirm('Segur que vols esborrar aquesta tasca? També s\'esborraran les entrades associades.')) return;
   try{ await api(new URLSearchParams({action:'delete_task', id}), 'POST'); await loadAll(); renderAll(); showOK('Tasca esborrada.'); }catch(e){}
-}
-async function delEntry(id){
+};
+window.delEntry = async function(id){
   if(!confirm('Esborrar aquest registre?')) return;
   try{ await api(new URLSearchParams({action:'delete_entry', id}), 'POST'); await loadAll(); renderAll(); showOK('Registre esborrat.'); }catch(e){}
-}
-</script>
-</body>
-</html>
+};
