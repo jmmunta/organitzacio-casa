@@ -83,12 +83,12 @@ function bootstrap() {
   $countM = (int)$pdo->query("SELECT COUNT(*) FROM members")->fetchColumn();
   if ($countM === 0) {
     $members = [
-      ['Chebe','Pare'],
-      ['Lídia','Mare'],
-      ['Gael','9 anys'],
-      ['Gala','7 anys'],
-      ['Aran','4 anys'],
-      ['Gat','Supervisor de migdiades'],
+      ['SuperMama','Mare'],
+      ['SuperPapa','Pare'],
+      ['Tete','9 anys'],
+      ['Tata','7 anys'],
+      ['Toti','4 anys'],
+      ['Gatet','Supervisor de migdiades'],
     ];
     $stmt = $pdo->prepare("INSERT INTO members(name, role) VALUES (?, ?)");
     foreach ($members as $m) { $stmt->execute($m); }

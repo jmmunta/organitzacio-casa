@@ -8,6 +8,7 @@ ini_set('display_errors', '1');
 require_once __DIR__ . '/db.php'; // carrega config.php i funció db()
 
 function run_sql_file(PDO $pdo, string $path): array {
+  require __DIR__ . '/config.php'; // per obtenir $dbname
   $out = ['file' => $path, 'ok' => true, 'messages' => []];
 
   if (!file_exists($path)) {
@@ -15,7 +16,6 @@ function run_sql_file(PDO $pdo, string $path): array {
     $out['messages'][] = "No s'ha trobat l'arxiu: $path";
     return $out;
   }
-
   $sql = file_get_contents($path);
   if ($sql === false) {
     $out['ok'] = false;
@@ -23,24 +23,75 @@ function run_sql_file(PDO $pdo, string $path): array {
     return $out;
   }
 
-  // Divideix per ; a final de línia — prou per a aquests scripts
-  $statements = array_filter(array_map('trim', preg_split('/;\s*$/m', $sql)));
+  // 1) Força usar la BD correcta
+  try { $pdo->exec("USE `" . str_replace('`','``',$dbname) . "`"); }
+  catch(Throwable $e){ $out['ok']=false; $out['messages'][]="ERROR USE DB: ".$e->getMessage(); return $out; }
 
-  try {
-    $pdo->beginTransaction();
-    foreach ($statements as $stmt) {
-      if ($stmt === '' || strpos($stmt, '--') === 0) continue;
-      $pdo->exec($stmt);
+  // 2) separador real de sentències: parseja caràcter a caràcter
+  $stmts = [];
+  $buf = '';
+  $inSingle = $inDouble = $inBack = false;
+  $len = strlen($sql);
+  for ($i=0; $i<$len; $i++) {
+    $ch = $sql[$i];
+    $next = $i+1 < $len ? $sql[$i+1] : '';
+
+    // comentaris línia --
+    if (!$inSingle && !$inDouble && !$inBack && $ch==='-' && $next==='-') {
+      while ($i<$len && $sql[$i] !== "\n") $i++;
+      $buf .= "\n";
+      continue;
     }
-    $pdo->commit();
-    $out['messages'][] = "Executat correctament.";
+    // comentaris /* ... */
+    if (!$inSingle && !$inDouble && !$inBack && $ch==='/' && $next==='*') {
+      $i+=2;
+      while ($i+1<$len && !($sql[$i]==='*' && $sql[$i+1]==='/')) $i++;
+      $i++; // salta '/'
+      continue;
+    }
+
+    // canvis d'estat de cometes
+    if ($ch==="'" && !$inDouble && !$inBack) { $inSingle = !$inSingle; $buf.=$ch; continue; }
+    if ($ch==='"' && !$inSingle && !$inBack) { $inDouble = !$inDouble; $buf.=$ch; continue; }
+    if ($ch==='`' && !$inSingle && !$inDouble) { $inBack = !$inBack; $buf.=$ch; continue; }
+
+    // punt i coma fora de cometes → final d'sentència
+    if ($ch===';' && !$inSingle && !$inDouble && !$inBack) {
+      $stmt = trim($buf);
+      if ($stmt!=='') $stmts[] = $stmt;
+      $buf = '';
+      continue;
+    }
+
+    $buf .= $ch;
+  }
+  $stmt = trim($buf);
+  if ($stmt!=='') $stmts[] = $stmt;
+
+  // 3) Executa una a una
+  $executed = 0;
+  try {
+    foreach ($stmts as $s) {
+      if ($s==='') continue;
+      $pdo->exec($s);
+      $executed++;
+    }
+    $out['messages'][] = "Executat correctament. Sentències: {$executed}";
   } catch (Throwable $e) {
-    $pdo->rollBack();
     $out['ok'] = false;
-    $out['messages'][] = "ERROR: " . $e->getMessage();
+    $out['messages'][] = "ERROR execució: " . $e->getMessage();
+  }
+
+  // 4) Informe de taules presents
+  try {
+    $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+    $out['messages'][] = "Taules a la BD: " . implode(', ', $tables ?: []);
+  } catch (Throwable $e) {
+    $out['messages'][] = "No s'han pogut llistar taules: " . $e->getMessage();
   }
   return $out;
 }
+
 
 $do = $_POST['do'] ?? ''; // 'schema', 'seed', 'both'
 $results = [];
