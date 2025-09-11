@@ -1,0 +1,10 @@
+[10-Sep-2025 23:25:26 Europe/Madrid] PHP Parse error:  syntax error, unexpected '.', expecting variable (T_VARIABLE) or '{' or '$' in /home/customer/www/muntanemerino.com/public_html/home-hero/public/api.php on line 9
+[10-Sep-2025 23:25:40 Europe/Madrid] PHP Parse error:  syntax error, unexpected '.', expecting variable (T_VARIABLE) or '{' or '$' in /home/customer/www/muntanemerino.com/public_html/home-hero/public/api.php on line 9
+[10-Sep-2025 23:25:45 Europe/Madrid] PHP Parse error:  syntax error, unexpected '.', expecting variable (T_VARIABLE) or '{' or '$' in /home/customer/www/muntanemerino.com/public_html/home-hero/public/api.php on line 9
+[10-Sep-2025 23:25:54 Europe/Madrid] PHP Parse error:  syntax error, unexpected '.', expecting variable (T_VARIABLE) or '{' or '$' in /home/customer/www/muntanemerino.com/public_html/home-hero/public/api.php on line 9
+[10-Sep-2025 23:27:11 Europe/Madrid] PHP Parse error:  syntax error, unexpected '.', expecting variable (T_VARIABLE) or '{' or '$' in /home/customer/www/muntanemerino.com/public_html/home-hero/public/api.php on line 9
+[11-Sep-2025 02:46:20 Europe/Madrid] PHP Fatal error:  Uncaught Error: Call to undefined function str_starts_with() in /home/customer/www/muntanemerino.com/public_html/home-hero/public/migrate.php:40
+Stack trace:
+#0 /home/customer/www/muntanemerino.com/public_html/home-hero/public/migrate.php(117): run_sql_file(Object(PDO), '/home/customer/...')
+#1 {main}
+  thrown in /home/customer/www/muntanemerino.com/public_html/home-hero/public/migrate.php on line 40

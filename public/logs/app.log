@@ -1,0 +1,50 @@
+[2025-09-11 00:59:53] REQ action=add_task user=joanma.muntane@gmail.com/admin
+[2025-09-11 00:59:53] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 01:00:47] REQ action=add_task user=joanma.muntane@gmail.com/admin
+[2025-09-11 01:00:47] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 01:02:47] REQ action=add_entry user=joanma.muntane@gmail.com/admin
+[2025-09-11 01:02:48] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 01:02:56] REQ action=add_entry user=joanma.muntane@gmail.com/admin
+[2025-09-11 01:02:57] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 01:07:16] REQ action=bootstrap user=joanma.muntane@gmail.com/admin
+[2025-09-11 01:07:16] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 01:07:17] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 01:07:17] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 02:27:14] REQ action=logout user=joanma.muntane@gmail.com/admin
+[2025-09-11 02:42:46] REQ action=login user=(anon)
+[2025-09-11 02:42:46] API ERROR: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'dbj0c89zsjhq44.users' doesn't exist / action=login
+[2025-09-11 02:42:46] json_error [500]: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'dbj0c89zsjhq44.users' doesn't exist
+[2025-09-11 02:43:12] REQ action=register user=(anon)
+[2025-09-11 02:43:12] API ERROR: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'dbj0c89zsjhq44.families' doesn't exist / action=register
+[2025-09-11 02:43:12] json_error [500]: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'dbj0c89zsjhq44.families' doesn't exist
+[2025-09-11 03:04:21] REQ action=register user=(anon)
+[2025-09-11 03:04:23] REQ action=bootstrap user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:04:23] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:04:24] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:04:25] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:04:45] REQ action=add_member user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:04:46] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:04:53] REQ action=upload_member_photo user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:04:53] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:05:03] REQ action=add_member user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:05:03] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:05:20] REQ action=add_member user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:05:20] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:05:27] REQ action=add_member user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:05:28] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:05:35] REQ action=add_member user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:05:35] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:06:15] REQ action=upload_member_photo user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:06:15] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:06:40] REQ action=upload_member_photo user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:06:42] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:06:55] REQ action=upload_member_photo user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:06:55] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:07:19] REQ action=upload_member_photo user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:07:19] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:08:15] REQ action=bootstrap user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:08:15] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:08:16] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:08:17] REQ action=list_all user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:09:03] REQ action=add_entry user=joanma.muntane@gmail.com/admin
+[2025-09-11 03:09:03] REQ action=list_all user=joanma.muntane@gmail.com/admin

@@ -1,4 +1,4 @@
-<?php /* index.php */ ?>
+<?php /* index.php */ session_start(); if(empty($_SESSION['user'])){ header('Location: login.php'); exit; } $me=$_SESSION['user']; ?>
 <!doctype html>
 <html lang="ca">
 <head>
@@ -18,9 +18,29 @@
     #status{margin:.75rem 0;padding:.5rem .75rem;border-radius:8px;display:none}
     #status.err{display:block;background:#ffe8e8;border:1px solid #ffb3b3;color:#8a1f1f}
     #status.ok{display:block;background:#e8fff0;border:1px solid #b3ffd1;color:#1f8a4a}
+    .stars { user-select:none; }
+    .stars .star{ font-size:1.8rem; line-height:1; cursor:pointer; color:#bbb; }
+    .stars .star.active{ color:#f5c518; } /* groc per a seleccionades */
+
+    .task-card{
+      border:1px solid #e7e7e7;border-radius:12px;padding:.5rem;text-align:center;cursor:pointer;
+    }
+    .task-card img{ width:72px;height:72px;object-fit:cover;border-radius:12px;display:block;margin:.25rem auto; }
+    .task-card .title{ display:block;margin-top:.25rem;font-weight:600 }
+    .task-card .cat{ display:block;font-size:.85rem;color:#666 }
+    .task-card.selected{ outline:2px solid #4caf50; }
+
+ 
   </style>
 </head>
 <body>
+  <header class="container" style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem">
+    <div><strong>Organització Casa</strong></div>
+    <nav>
+      <span class="muted" style="margin-right:.5rem"><?=htmlspecialchars($me['email'])?> (<?=htmlspecialchars($me['role'])?>)</span>
+      <a href="api.php?action=logout" role="button" class="secondary">Sortir</a>
+    </nav>
+  </header>
   <main class="container">
     <h1>Organització Casa · Tasques familiars</h1>
     <p class="muted">Registra qui fa què, quan i com de bé. Suma punts i mireu el rànquing setmanal o mensual.</p>
@@ -44,15 +64,29 @@
           <label>Membre
             <select id="memberId"></select>
           </label>
-          <label>Tasca
-            <select id="taskId"></select>
-          </label>
+          <label>Tasca</label>
+          <div style="display:flex;gap:.5rem;align-items:center">
+            <button id="openTaskPicker" type="button">Selecciona tasca</button>
+            <span id="taskSelectedPreview" class="muted">Cap tasca seleccionada</span>
+          </div>
+          <input type="hidden" id="taskId" />
+
           <label>Data i hora
             <input type="datetime-local" id="dateISO" />
           </label>
-          <label>Qualitat (1–5)
-            <input type="number" id="quality" min="1" max="5" value="3" />
-          </label>
+          <label>Qualitat</label>
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <div id="qualityStars" class="stars" data-value="3" aria-label="Qualitat 1 a 5">
+                <span class="star" data-val="1">☆</span>
+                <span class="star" data-val="2">☆</span>
+                <span class="star" data-val="3">☆</span>
+                <span class="star" data-val="4">☆</span>
+                <span class="star" data-val="5">☆</span>
+              </div>
+              <small id="qualityLabel" class="muted">3/5</small>
+            </div>
+            <input type="hidden" id="quality" value="3">
+
           <label>Notes
             <textarea id="notes" rows="2" placeholder="Detalls, incidències…"></textarea>
           </label>
@@ -94,19 +128,46 @@
             <button>Afegeix membre</button>
           </form>
           <div id="membersList" style="margin-top:.5rem"></div>
+          <form id="photoForm" class="grid" enctype="multipart/form-data" style="margin-top:.5rem">
+            <select id="photoMemberId" required></select>
+            <input type="file" id="photoFile" accept="image/*" required />
+            <button>Puja foto</button>
+          </form>
+          <p class="muted">Si no hi ha foto, es mostra un avatar per defecte.</p>
         </details>
         <details open>
           <summary>Tasques</summary>
-          <form id="taskForm" class="grid">
-            <input id="taskName" placeholder="Nom de la tasca" />
-            <input id="taskPoints" type="number" min="1" value="10" />
-            <input id="taskIcon" placeholder="Icona (ex: 🧹)" maxlength="8" />
-            <button>Afegeix tasca</button>
+          <form id="taskForm" class="grid" enctype="multipart/form-data">
+            <input id="taskName" name="name" placeholder="Nom de la tasca" required />
+            <input id="taskCategory" name="category" placeholder="Categoria (ex: Cuina, Neteja…)" />
+            <input id="taskPoints" name="base_points" type="number" min="1" value="10" />
+            <input id="taskEmoji" name="icon" placeholder="Emoji (opcional) ex: 🧹" maxlength="8" />
+            <input id="taskIconImg" name="icon_img" type="file" accept="image/*" />
+            <button>Crea tasca</button>
           </form>
           <div id="tasksList" style="margin-top:.5rem"></div>
         </details>
+
       </article>
     </section>
+    <!-- Modal selector de tasques -->
+    <dialog id="taskPicker">
+      <article style="max-width:820px">
+        <header style="display:flex;justify-content:space-between;align-items:center">
+          <strong>Selecciona una tasca</strong>
+          <button id="taskPickerClose" class="secondary" aria-label="Tanca">✕</button>
+        </header>
+
+        <input id="taskPickerSearch" placeholder="Cerca…" style="width:100%;margin:.5rem 0">
+
+        <div id="taskPickerContent" class="grid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.75rem"></div>
+
+        <footer style="display:flex;justify-content:flex-end;margin-top:.5rem">
+          <button id="taskPickerCancel" class="secondary">Cancel·la</button>
+        </footer>
+      </article>
+    </dialog>
+
   </main>
 
   <!-- JS principal separat -->

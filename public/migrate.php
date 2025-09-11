@@ -1,123 +1,131 @@
 <?php
-// migrate.php — aplicador d'schema/seed via web
-// ⚠️ Després d’usar-lo, ELIMINA aquest fitxer per seguretat.
+/* migrate.php – Configuració inicial: esquema i seed */
 
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
+require_once __DIR__ . '/db.php';
+error_reporting(E_ALL); ini_set('display_errors','1');
+header('Content-Type: text/html; charset=utf-8');
 
-require_once __DIR__ . '/db.php'; // carrega config.php i funció db()
+/* ---------- Helpers bàsics ---------- */
+function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
+/* Polyfills per compatibilitat (per si al host no hi ha aquestes funcions) */
+if (!function_exists('str_starts_with')) {
+  function str_starts_with($haystack, $needle){
+    if ($needle === '') return true;
+    return strncmp($haystack, $needle, strlen($needle)) === 0;
+  }
+}
+if (!function_exists('str_contains')) {
+  function str_contains($haystack, $needle){
+    return $needle === '' || strpos($haystack, $needle) !== false;
+  }
+}
+
+/** Retalla una sentència per deixar-la curta en els logs */
+function snippet(string $sql): string {
+  $s = preg_replace('/\s+/', ' ', trim($sql));
+  if (function_exists('mb_substr')) {
+    return mb_substr($s, 0, 140) . (mb_strlen($s) > 140 ? '…' : '');
+  }
+  return substr($s, 0, 140) . (strlen($s) > 140 ? '…' : '');
+}
+
+/** Detecta versió major de MySQL (8, 5, …) */
+function mysql_major_version(PDO $pdo): int {
+  $v = $pdo->query("SELECT VERSION() AS v")->fetchColumn();
+  if (!$v) return 8;
+  if (preg_match('/^(\d+)\./', $v, $m)) return (int)$m[1];
+  return 8;
+}
+
+/** Executa un fitxer .sql (comentaris suportats, múltiples sentències simples) */
 function run_sql_file(PDO $pdo, string $path): array {
-  require __DIR__ . '/config.php'; // per obtenir $dbname
-  $out = ['file' => $path, 'ok' => true, 'messages' => []];
-
-  if (!file_exists($path)) {
-    $out['ok'] = false;
-    $out['messages'][] = "No s'ha trobat l'arxiu: $path";
-    return $out;
+  $out = [];
+  if (!is_file($path)) {
+    return ["[ERROR] No existeix el fitxer: $path"];
   }
   $sql = file_get_contents($path);
   if ($sql === false) {
-    $out['ok'] = false;
-    $out['messages'][] = "No s'ha pogut llegir: $path";
-    return $out;
+    return ["[ERROR] No puc llegir: $path"];
   }
 
-  // 1) Força usar la BD correcta
-  try { $pdo->exec("USE `" . str_replace('`','``',$dbname) . "`"); }
-  catch(Throwable $e){ $out['ok']=false; $out['messages'][]="ERROR USE DB: ".$e->getMessage(); return $out; }
+  $lines = preg_split("/\r?\n/", $sql);
+  $buffer = '';
 
-  // 2) separador real de sentències: parseja caràcter a caràcter
-  $stmts = [];
-  $buf = '';
-  $inSingle = $inDouble = $inBack = false;
-  $len = strlen($sql);
-  for ($i=0; $i<$len; $i++) {
-    $ch = $sql[$i];
-    $next = $i+1 < $len ? $sql[$i+1] : '';
+  foreach ($lines as $rawLine) {
+    $line = trim($rawLine);
 
-    // comentaris línia --
-    if (!$inSingle && !$inDouble && !$inBack && $ch==='-' && $next==='-') {
-      while ($i<$len && $sql[$i] !== "\n") $i++;
-      $buf .= "\n";
+    // Omet comentaris i línies buides
+    if ($line === '' || str_starts_with($line, '--') || str_starts_with($line, '#')) {
       continue;
     }
-    // comentaris /* ... */
-    if (!$inSingle && !$inDouble && !$inBack && $ch==='/' && $next==='*') {
-      $i+=2;
-      while ($i+1<$len && !($sql[$i]==='*' && $sql[$i+1]==='/')) $i++;
-      $i++; // salta '/'
-      continue;
+    // Omet directives DELIMITER (no les fem servir)
+    if (preg_match('/^\s*DELIMITER\s/i', $line)) continue;
+
+    $buffer .= $rawLine . "\n";
+
+    // Executa quan la línia acaba amb ;
+    if (preg_match('/;\s*$/', $line)) {
+      $stmt = trim($buffer);
+      $buffer = '';
+      if ($stmt !== '') {
+        try {
+          $pdo->exec($stmt);
+          $out[] = "[OK] " . snippet($stmt);
+        } catch (Throwable $e) {
+          $out[] = "[ERROR] " . $e->getMessage() . " :: " . snippet($stmt);
+        }
+      }
     }
-
-    // canvis d'estat de cometes
-    if ($ch==="'" && !$inDouble && !$inBack) { $inSingle = !$inSingle; $buf.=$ch; continue; }
-    if ($ch==='"' && !$inSingle && !$inBack) { $inDouble = !$inDouble; $buf.=$ch; continue; }
-    if ($ch==='`' && !$inSingle && !$inDouble) { $inBack = !$inBack; $buf.=$ch; continue; }
-
-    // punt i coma fora de cometes → final d'sentència
-    if ($ch===';' && !$inSingle && !$inDouble && !$inBack) {
-      $stmt = trim($buf);
-      if ($stmt!=='') $stmts[] = $stmt;
-      $buf = '';
-      continue;
-    }
-
-    $buf .= $ch;
-  }
-  $stmt = trim($buf);
-  if ($stmt!=='') $stmts[] = $stmt;
-
-  // 3) Executa una a una
-  $executed = 0;
-  try {
-    foreach ($stmts as $s) {
-      if ($s==='') continue;
-      $pdo->exec($s);
-      $executed++;
-    }
-    $out['messages'][] = "Executat correctament. Sentències: {$executed}";
-  } catch (Throwable $e) {
-    $out['ok'] = false;
-    $out['messages'][] = "ERROR execució: " . $e->getMessage();
   }
 
-  // 4) Informe de taules presents
-  try {
-    $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
-    $out['messages'][] = "Taules a la BD: " . implode(', ', $tables ?: []);
-  } catch (Throwable $e) {
-    $out['messages'][] = "No s'han pogut llistar taules: " . $e->getMessage();
+  // Resta pendent sense ; final
+  $stmt = trim($buffer);
+  if ($stmt !== '') {
+    try {
+      $pdo->exec($stmt);
+      $out[] = "[OK] " . snippet($stmt);
+    } catch (Throwable $e) {
+      $out[] = "[ERROR] " . $e->getMessage() . " :: " . snippet($stmt);
+    }
   }
+
   return $out;
 }
 
+/* ---------- Inicialització ---------- */
+$pdo   = db();
+$major = mysql_major_version($pdo);
 
-$do = $_POST['do'] ?? ''; // 'schema', 'seed', 'both'
-$results = [];
-$okPing = true;
-$pingMsg = 'Connexió OK';
+// Fitxers per defecte
+$defaultSchema = ($major >= 8)
+  ? __DIR__ . '/../sql/schema.mysql80.sql'
+  : __DIR__ . '/../sql/schema.mysql56.sql';
+$defaultSeed   = __DIR__ . '/../sql/seed_tasks.sql';
 
-try {
-  $pdo = db();
-  // prova simple
-  $pdo->query('SELECT 1');
-} catch (Throwable $e) {
-  $okPing = false;
-  $pingMsg = 'ERROR connexió BD: ' . $e->getMessage();
-}
+$action   = $_POST['action']   ?? '';
+$schema   = $_POST['schema']   ?? $defaultSchema;
+$seedfile = $_POST['seedfile'] ?? $defaultSeed;
 
-$baseDir = dirname(__DIR__); // si estàs a public/, el sql/ és un nivell amunt
-// Si els SQL són a ./sql respecte migrate.php, canvia a __DIR__ . '/sql'
-$schemaPath = is_dir(__DIR__ . '/../sql') ? (__DIR__ . '/../sql/schema.sql') : (__DIR__ . '/sql/schema.sql');
-$seedPath   = is_dir(__DIR__ . '/../sql') ? (__DIR__ . '/../sql/seed_tasks.sql') : (__DIR__ . '/sql/seed_tasks.sql');
+$logs = [];
+$okSummary = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $okPing) {
-  if ($do === 'schema' || $do === 'both') {
-    $results[] = run_sql_file($pdo, $schemaPath);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  if ($action === 'schema' || $action === 'both') {
+    $logs[] = "==> Executant ESQUEMA: " . h($schema);
+    $logs   = array_merge($logs, run_sql_file($pdo, $schema));
   }
-  if ($do === 'seed' || $do === 'both') {
-    $results[] = run_sql_file($pdo, $seedPath);
+  if ($action === 'seed' || $action === 'both') {
+    $logs[] = "==> Executant SEED: " . h($seedfile);
+    $logs   = array_merge($logs, run_sql_file($pdo, $seedfile));
+  }
+
+  // Resum de taules
+  try {
+    $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+    $okSummary = "Taules actuals: " . h(implode(', ', $tables));
+  } catch (Throwable $e) {
+    $logs[] = "[WARN] No s'ha pogut llistar taules: " . $e->getMessage();
   }
 }
 ?>
@@ -125,87 +133,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $okPing) {
 <html lang="ca">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Instal·lador / Migracions</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Migrate · Instal·lació inicial</title>
   <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@2/css/pico.min.css" />
   <style>
-    .ok { background:#e8fff0; border:1px solid #b3ffd1; color:#1f8a4a; padding:.5rem .75rem; border-radius:8px; }
-    .err{ background:#ffe8e8; border:1px solid #ffb3b3; color:#8a1f1f; padding:.5rem .75rem; border-radius:8px; }
-    pre{ white-space:pre-wrap; }
+    .muted{color:#666}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;}
+    pre{white-space: pre-wrap}
+    .ok{color:#0a8a3a}
+    .err{color:#b00020}
   </style>
 </head>
-<body class="container">
-  <h1>Instal·lador / Migracions</h1>
+<body>
+<main class="container">
+  <h1>Configuració inicial (migrate)</h1>
+  <p class="muted">MySQL detectat: <strong><?=h($major)?></strong> · Esquema per defecte: <code class="mono"><?=h($defaultSchema)?></code></p>
 
-  <article>
-    <h3>Connexió a la base de dades</h3>
-    <p class="<?= $okPing ? 'ok':'err' ?>">
-      <?= htmlspecialchars($pingMsg, ENT_QUOTES, 'UTF-8') ?>
-    </p>
-    <details>
-      <summary>Credencials (de config.php)</summary>
-      <pre><?php
-        // Mostra només host i nom de BD per no exposar la contrasenya
-        require __DIR__ . '/config.php';
-        echo "Host: " . htmlspecialchars($servername) . "\n";
-        echo "BD:   " . htmlspecialchars($dbname) . "\n";
-        echo "Usuari: " . htmlspecialchars($username) . "\n";
-        echo "(La contrasenya no es mostra)";
+  <form method="post" class="grid">
+    <label>Acció
+      <select name="action" required>
+        <option value="">— Tria què vols fer —</option>
+        <option value="schema">Crear/actualitzar taules (ESQUEMA)</option>
+        <option value="seed">Inserir dades inicials (SEED)</option>
+        <option value="both">Fer les dues coses (ESQUEMA + SEED)</option>
+      </select>
+    </label>
+
+    <label>Fitxer d’esquema (.sql)
+      <input type="text" name="schema" value="<?=h($schema)?>" />
+      <small class="muted">Recomanat: <code class="mono"><?=h($defaultSchema)?></code>. Pots forçar un altre fitxer (p. ex. <code class="mono">../sql/schema.mysql56.sql</code>).</small>
+    </label>
+
+    <label>Fitxer de dades inicials (seed) (.sql)
+      <input type="text" name="seedfile" value="<?=h($seedfile)?>" />
+      <small class="muted">Per defecte: <code class="mono"><?=h($defaultSeed)?></code></small>
+    </label>
+
+    <button type="submit">Executa</button>
+  </form>
+
+  <?php if ($_SERVER['REQUEST_METHOD'] === 'POST'): ?>
+    <article style="margin-top:1rem">
+      <h3>Resultat</h3>
+      <?php if ($okSummary): ?><p class="ok"><?= $okSummary ?></p><?php endif; ?>
+      <pre class="mono"><?php
+        foreach ($logs as $line) {
+          $cls = (strpos($line, '[ERROR]') !== false) ? 'err' : ((strpos($line,'[OK]')!==false) ? 'ok' : '');
+          echo ($cls ? '['.$cls.'] ' : '') . h($line) . "\n";
+        }
       ?></pre>
-    </details>
-  </article>
+    </article>
+  <?php endif; ?>
 
-  <article>
-    <h3>Executar scripts SQL</h3>
-    <form method="post">
-      <fieldset>
-        <label>
-          <input type="radio" name="do" value="schema" required>
-          Només <strong>schema.sql</strong> (crea taules)
-        </label>
-        <label>
-          <input type="radio" name="do" value="seed">
-          Només <strong>seed_tasks.sql</strong> (omple tasques)
-        </label>
-        <label>
-          <input type="radio" name="do" value="both">
-          <strong>Ambdós</strong> (schema + seed)
-        </label>
-      </fieldset>
-      <button type="submit">Executa</button>
-    </form>
-
-    <?php if (!empty($results)): ?>
-      <h4>Resultat</h4>
-      <?php foreach ($results as $r): ?>
-        <div class="<?= $r['ok'] ? 'ok':'err' ?>">
-          <strong><?= htmlspecialchars($r['file']) ?></strong><br>
-          <?php foreach ($r['messages'] as $m): ?>
-            <?= htmlspecialchars($m) ?><br>
-          <?php endforeach; ?>
-        </div>
-      <?php endforeach; ?>
-    <?php endif; ?>
-  </article>
-
-  <article>
-    <h3>On ha de ser la carpeta <code>sql/</code>?</h3>
-    <p>
-      Per defecte, aquest instal·lador busca els fitxers en:
-      <code><?= htmlspecialchars($schemaPath) ?></code> i
-      <code><?= htmlspecialchars($seedPath) ?></code>.
-    </p>
-    <p>Si tens una altra estructura, mou la carpeta <code>sql/</code> perquè coincideixi, o edita <code>migrate.php</code> i ajusta les rutes.</p>
-  </article>
-
-  <article>
-    <h3>Seguretat</h3>
+  <hr>
+  <details>
+    <summary>Ajuda / Notes</summary>
     <ul>
-      <li><strong>Elimina</strong> aquest fitxer <code>migrate.php</code> després d’usar-lo.</li>
-      <li>Assegura’t que <code>config.php</code> no es puja mai a un repo públic amb les teves claus reals.</li>
+      <li><strong>ESQUEMA</strong>: crea/recrea les taules segons el fitxer triat.</li>
+      <li><strong>SEED</strong>: insereix/actualitza les tasques per defecte per a cada família.</li>
+      <li>Parser simple: sentències separades amb <code>;</code>, comentaris <code>--</code>/<code>#</code>, sense <code>DELIMITER</code>.</li>
+      <li>Per una instal·lació nova, fes “<em>ESQUEMA + SEED</em>”.</li>
     </ul>
-  </article>
-
-  <footer class="muted">Un cop creat tot, ves a <code>index.php</code> i comprova que l’app funciona.</footer>
+  </details>
+</main>
 </body>
 </html>
